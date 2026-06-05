@@ -116,6 +116,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.5;}
 
 </style>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<base target="_blank">
 </head>
 <body>
 <header class="ah">
@@ -128,6 +129,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.5;}
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
     <button id="saveBtnHeader" onclick="saveProgress()" title="Guardar progreso" style="display:none;background:none;border:1px solid var(--dim);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:15px;color:var(--sub);">&#128190;</button>
+    <button id="resetBtnHeader" onclick="resetCapture()" title="Reiniciar captura" style="display:none;background:none;border:1px solid var(--ng);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:15px;color:var(--ng);margin-left:4px;">&#128260;</button>
     <button id="themeBtn" onclick="toggleTheme()" title="Modo dia/noche" style="background:none;border:1px solid var(--dim);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:15px;color:var(--sub);-webkit-tap-highlight-color:transparent;">&#9728;</button>
     <div class="od" id="od"></div>
     <span id="ol" style="font-size:11px;color:var(--sub);font-weight:600;"></span>
@@ -137,6 +139,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.5;}
 <div class="firma">By F. Esparza</div>
 <div id="qr_overlay"></div>
 <div id="qrModal" class="mb"><div class="mx card" style="padding:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div style="font-size:16px;font-weight:800;color:var(--txt);">Escanear Codigo QR</div><button onclick="closeQrModal()" style="background:none;border:none;color:var(--ng);font-size:22px;cursor:pointer;">&times;</button></div><div id="qr-reader" style="width:100%;max-width:400px;margin:0 auto;border-radius:12px;overflow:hidden;"></div><div style="margin-top:12px;text-align:center;color:var(--sub);font-size:12px;">Apunta la camara al codigo QR</div></div></div>
+<div id="photoModal" class="mb" onclick="closePhotoModal()"><div class="mx" style="position:relative;" onclick="event.stopPropagation()"><button onclick="closePhotoModal()" style="position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;">&times;</button><img id="photoModalImg" src="" style="width:100%;border-radius:12px;display:block;"></div></div>
 <div class="content">
   <div class="stepbar" id="SB"></div>
   <div id="s1" class="screen"></div>
@@ -274,7 +277,25 @@ function selectUser(nom){
 }
 function updateSaveBtn(){
   var btn=document.getElementById("saveBtnHeader");
+  var rbtn=document.getElementById("resetBtnHeader");
   if(btn)btn.style.display=(ST.step>=3)?"block":"none";
+  if(rbtn)rbtn.style.display=(ST.step>=3)?"block":"none";
+}
+function resetCapture(){
+  if(!confirm("\u26a0\ufe0f ¿Reiniciar captura completa? Se perdera el progreso no guardado."))return;
+  ST.step=1;ST.part=fp();ST.records=[];ST.vrf=[{i:false,m:false,f:false,obs:""},{i:false,m:false,f:false,obs:""},{i:false,m:false,f:false,obs:""},{i:false,m:false,f:false,obs:""},{i:false,m:false,f:false,obs:""},{i:false,m:false,f:false,obs:""}];
+  uH();rSB();hide("s_vrf");hide("s2");hide("s3");show("s1");rS1();window.scrollTo(0,0);
+  toast("\ud83d\udd04 Captura reiniciada");
+}
+function autoLoad(){
+  var currentNom=localStorage.getItem(CURRENT_USER_KEY);
+  if(!currentNom){rS1();return;}
+  var users=getUsers();
+  var user=users.find(function(x){return x.nomina===currentNom;});
+  if(user){ST.insp.nomina=user.nomina;ST.insp.nombre=user.nombre;ST.insp.turno=user.turno;ST.insp.fecha=user.fecha||new Date().toISOString().split("T")[0];}
+  var key="qci_progress_"+currentNom;
+  var raw=localStorage.getItem(key);
+  if(raw){try{var data=JSON.parse(raw);ST.step=data.step||1;ST.insp=data.insp||ST.insp;ST.part=data.part||fp();ST.records=data.records||[];ST.vrf=data.vrf||ST.vrf;uH();rSB();["s1","s_vrf","s2","s3"].forEach(function(id){hide(id);});var screenMap={1:"s1",2:"s_vrf",3:"s2",4:"s3"};show(screenMap[ST.step]||"s1");if(ST.step===1)rS1();else if(ST.step===2)rVrf();else if(ST.step===3)rS2();else if(ST.step===4)rS3();toast("\u2705 Progreso restaurado: "+ST.records.length+" actividades");}catch(e){rS1();}}else{rS1();}
 }
 
 var GAR=["GI - GARANTIA INTERNA","GC - GARANTIA CLIENTE","PD - PARTE DIRECTA","CI - CONTROL INICIAL","OTRO"];
@@ -580,13 +601,9 @@ function parseQR(txt){
   var numeroParte="",modelo="",snp="";
   for(var i=0;i<lines.length;i++){
     var line=lines[i];
-    if(line.toUpperCase().indexOf("SNP:")===0){
-      var v=line.substring(4).replace(/[^0-9]/g,"");snp=v;
-    }else if(line.toUpperCase().indexOf("MODELO:")===0){
-      modelo=line.substring(7).trim();
-    }else if(!numeroParte&&line.length>0&&!line.match(/^SNP:/i)&&!line.match(/^MODELO:/i)){
-      numeroParte=line;
-    }
+    if(line.toUpperCase().indexOf("SNP:")===0){var v=line.substring(4).replace(/[^0-9]/g,"");snp=v;}
+    else if(line.toUpperCase().indexOf("MODELO:")===0){modelo=line.substring(7).trim();}
+    else if(!numeroParte&&line.length>0&&!line.match(/^SNP:/i)&&!line.match(/^MODELO:/i)){numeroParte=line;}
   }
   if(!numeroParte&&lines.length>0) numeroParte=lines[0];
   return{numeroParte:numeroParte,modelo:modelo,snp:snp};
@@ -596,37 +613,16 @@ var html5QrCode=null;
 function openQR(){
   var modal=document.getElementById("qrModal");
   if(modal) modal.classList.add("open");
-  if(typeof Html5Qrcode==="undefined"){
-    toast("\u26a0\ufe0f Cargando libreria QR... reintenta en unos segundos");
-    setTimeout(function(){if(typeof Html5Qrcode!=="undefined")openQR();},2000);
-    return;
-  }
+  if(typeof Html5Qrcode==="undefined"){toast("\u26a0\ufe0f Cargando libreria QR...");setTimeout(function(){if(typeof Html5Qrcode!=="undefined")openQR();},2000);return;}
   try{
-    var reader=document.getElementById("qr-reader");
-    if(!reader){toast("\u274c Contenedor QR no encontrado");return;}
     html5QrCode=new Html5Qrcode("qr-reader");
-    html5QrCode.start(
-      {facingMode:"environment"},
-      {fps:10,qrbox:{width:250,height:250}},
-      function(decodedText){applyQR(decodedText);closeQrModal();},
-      function(err){/* scan continuo */}
-    ).catch(function(err){
-      console.error("QR error:",err);
-      toast("\u274c Error camara: "+err+". Usa entrada manual.");
-      closeQrModal();
-    });
-  }catch(e){
-    console.error("QR init error:",e);
-    toast("\u274c Error QR: "+e.message);
-  }
+    html5QrCode.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:250}},function(decodedText){applyQR(decodedText);closeQrModal();},function(err){}).catch(function(err){toast("\u274c Error camara: "+err);closeQrModal();});
+  }catch(e){toast("\u274c Error QR: "+e.message);}
 }
 function closeQrModal(){
   var modal=document.getElementById("qrModal");
   if(modal) modal.classList.remove("open");
-  if(html5QrCode){
-    html5QrCode.stop().then(function(){html5QrCode.clear();}).catch(function(e){console.error("stop error",e);});
-    html5QrCode=null;
-  }
+  if(html5QrCode){html5QrCode.stop().then(function(){html5QrCode.clear();}).catch(function(){});html5QrCode=null;}
 }
 function applyQR(txt){
   var p=parseQR(txt);
@@ -636,7 +632,6 @@ function applyQR(txt){
   toast("\u2705 QR: "+p.numeroParte+(p.modelo?" \u00b7 "+p.modelo:"")+(p.snp?" \u00b7 SNP:"+p.snp:""));
   syncP();cT();
 }
-
 
 
 
@@ -800,25 +795,24 @@ function rS2(){
 
   if(!ngZ){
     h+=DR("Evidencia Fotografica");
-    // Mostrar fotos ya agregadas
     if(part.fotos&&part.fotos.length>0){
       h+="<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>";
       for(var fi=0;fi<part.fotos.length;fi++){
-        h+="<div style='position:relative;width:80px;height:80px;border-radius:10px;overflow:hidden;border:1px solid var(--dim);'>"
+        h+="<div style='position:relative;width:80px;height:80px;border-radius:10px;overflow:hidden;border:1px solid var(--dim);cursor:pointer;' onclick='openPhotoPreview("+fi+")'>"
           +"<img src='"+part.fotos[fi]+"' style='width:100%;height:100%;object-fit:cover;display:block;'>"
-          +"<button onclick='removeFoto("+fi+")' style='position:absolute;top:2px;right:2px;background:rgba(0,0,0,.75);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;'>&#215;</button>"
+          +"<button onclick='event.stopPropagation();removeFoto("+fi+")' style='position:absolute;top:2px;right:2px;background:rgba(0,0,0,.75);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;'>&#215;</button>"
           +"</div>";
       }
       h+="</div>";
     }
     h+="<div class='field'><div class='fl'>Fotos del Defecto</div>"
-      +"<div style='display:flex;gap:8px;margin-bottom:8px;'>"
+      +"<div style='display:flex;gap:8px;margin-bottom:8px;position:relative;'>"
         +"<label for='camInp' style='flex:1;cursor:pointer;'><div class='pl' style='padding:12px;'><span style='font-size:28px;'>&#128247;</span><span style='color:var(--sub);font-size:12px;font-weight:700;display:block;'>Camara</span></div></label>"
-        +"<input type='file' id='camInp' accept='image/*' capture='environment' style='position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;' onchange='hFoto(this);'>"
+        +"<input type='file' id='camInp' accept='image/*' capture='environment' style='position:absolute;opacity:0;width:0;height:0;overflow:hidden;pointer-events:none;' onchange='hFoto(this);'>"
         +"<label for='galInp' style='flex:1;cursor:pointer;'><div class='pl' style='padding:12px;'><span style='font-size:28px;'>&#128444;&#65039;</span><span style='color:var(--sub);font-size:12px;font-weight:700;display:block;'>Galeria</span></div></label>"
-        +"<input type='file' id='galInp' accept='image/*' multiple style='position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;' onchange='hFoto(this);'>"
+        +"<input type='file' id='galInp' accept='image/*' multiple style='position:absolute;opacity:0;width:0;height:0;overflow:hidden;pointer-events:none;' onchange='hFoto(this);'>"
       +"</div>"
-      +"<div class='fh'>"+(part.fotos.length>0?part.fotos.length+" foto(s) agregada(s). ":"")+"Puedes agregar multiples fotos desde camara o galeria</div>"
+      +"<div class='fh'>"+(part.fotos&&part.fotos.length>0?part.fotos.length+" foto(s). ":"")+"Toca miniatura para ampliar, X para eliminar</div>"
     +"</div>";
   }
   h+="</div>"; // /piezas dis
@@ -855,7 +849,7 @@ function hFoto(inp){
     r.onload=function(e){
       ST.part.fotos.push(e.target.result);
       loaded++;
-      if(loaded===files.length)rS2();
+      if(loaded===files.length){rS2();toast("\u2705 "+loaded+" foto(s) agregada(s)");}
     };
     r.readAsDataURL(f);
   }
@@ -864,6 +858,15 @@ function hFoto(inp){
 function removeFoto(idx){
   ST.part.fotos.splice(idx,1);
   rS2();
+}
+function openPhotoPreview(idx){
+  var img=document.getElementById("photoModalImg");
+  var modal=document.getElementById("photoModal");
+  if(img&&modal&&ST.part.fotos[idx]){img.src=ST.part.fotos[idx];modal.classList.add("open");}
+}
+function closePhotoModal(){
+  var modal=document.getElementById("photoModal");
+  if(modal)modal.classList.remove("open");
 }
 function sPV(src){var img=G("ppi"),pv=G("ppv"),lb=G("ppl");if(!img||!pv||!lb)return;img.src=src;pv.style.display="block";lb.style.display="none";}
 function rFoto(){ST.part.fotoB64="";var pv=G("ppv"),lb=G("ppl");if(pv)pv.style.display="none";if(lb)lb.style.display="flex";var ci=G("camInp");if(ci)ci.value="";}
@@ -928,6 +931,10 @@ function gS4(){
 }
 
 // ── PASO 3 ────────────────────────────────────────────────────
+function editCapture(){
+  ST.step=3;rSB();hide("s3");show("s2");rS2();window.scrollTo(0,0);
+  toast("\u2705 Modo edicion activado");
+}
 function bS3(){ST.step=3;rSB();hide("s3");show("s2");rS2();window.scrollTo(0,0);}
 
 function rS3(){
@@ -996,7 +1003,11 @@ function rS3(){
       +_overlapWarn
       +"</div>";
   }
-  +"<div class='g2'><button class='btn btn-ghost btn-md' onclick='bS3();'>&#8592; Agregar Mas</button><button class='btn btn-ghost btn-md' onclick='nInsp();'>&#128260; Nueva</button></div>";
+  +"<div style='display:flex;flex-direction:column;gap:10px;margin-bottom:14px;'>"
+    +"<button class='btn btn-ora btn-lg' onclick='editCapture();'>&#9998; Editar Captura</button>"
+    +"<button class='btn btn-ghost btn-md' onclick='bS3();'>&#8592; Agregar Mas Actividades</button>"
+    +"<button class='btn btn-ghost btn-md' onclick='nInsp();'>&#128260; Nueva Inspeccion</button>"
+  +"</div>";
   G("s3").innerHTML=h;
 }
 function KP(l,v,c){return "<div class='card' style='padding:12px;text-align:center;'><div style='font-size:19px;font-weight:900;color:"+c+";line-height:1;'>"+v+"</div><div style='font-size:8px;font-weight:700;color:var(--sub);text-transform:uppercase;margin-top:3px;'>"+l+"</div></div>";}
@@ -1593,42 +1604,6 @@ function applyTheme(){
 }
 
 window.addEventListener("DOMContentLoaded",function(){applyTheme();uOL();uH();rSB();rS1();});
-
-// AUTO-LOAD: restaurar progreso al cargar la pagina
-function autoLoad(){
-  var currentNom=localStorage.getItem(CURRENT_USER_KEY);
-  if(!currentNom){rS1();return;}
-  var users=getUsers();
-  var user=users.find(function(x){return x.nomina===currentNom;});
-  if(user){
-    ST.insp.nomina=user.nomina;
-    ST.insp.nombre=user.nombre;
-    ST.insp.turno=user.turno;
-    ST.insp.fecha=user.fecha||new Date().toISOString().split("T")[0];
-  }
-  var key="qci_progress_"+currentNom;
-  var raw=localStorage.getItem(key);
-  if(raw){
-    try{
-      var data=JSON.parse(raw);
-      ST.step=data.step||1;
-      ST.insp=data.insp||ST.insp;
-      ST.part=data.part||fp();
-      ST.records=data.records||[];
-      ST.vrf=data.vrf||ST.vrf;
-      uH();rSB();
-      ["s1","s_vrf","s2","s3"].forEach(function(id){hide(id);});
-      var screenMap={1:"s1",2:"s_vrf",3:"s2",4:"s3"};
-      show(screenMap[ST.step]||"s1");
-      if(ST.step===1)rS1();
-      else if(ST.step===2)rVrf();
-      else if(ST.step===3)rS2();
-      else if(ST.step===4)rS3();
-      toast("\u2705 Progreso restaurado automaticamente: "+ST.records.length+" actividades");
-    }catch(e){rS1();}
-  }else{rS1();}
-}
-
 autoLoad();
 </script>
 </body>
