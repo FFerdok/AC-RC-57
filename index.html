@@ -828,10 +828,10 @@ function rS2(){
     }
     h+="<div class='field'><div class='fl'>Fotos del Defecto</div>"
       +"<div style='display:flex;gap:8px;margin-bottom:8px;'>"
-        +"<label for='camInp' style='flex:1;cursor:pointer;'><div class='pl' style='padding:12px;'><span style='font-size:28px;'>&#128247;</span><span style='color:var(--sub);font-size:12px;font-weight:700;display:block;'>Camara</span></div></label>"
-        +"<input type='file' id='camInp' accept='image/*' capture='environment' style='position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;' onchange='hFoto(this);'>"
-        +"<label for='galInp' style='flex:1;cursor:pointer;'><div class='pl' style='padding:12px;'><span style='font-size:28px;'>&#128444;&#65039;</span><span style='color:var(--sub);font-size:12px;font-weight:700;display:block;'>Galeria</span></div></label>"
-        +"<input type='file' id='galInp' accept='image/*' multiple style='position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;' onchange='hFoto(this);'>"
+        +"<label for='camInp' style='flex:1;cursor:pointer;display:block;'><div class='pl' style='padding:12px;'><span style='font-size:28px;'>&#128247;</span><span style='color:var(--sub);font-size:12px;font-weight:700;display:block;'>Camara</span></div></label>"
+        +"<input type='file' id='camInp' accept='image/*' capture='environment' style='position:absolute;opacity:0;width:0;height:0;overflow:hidden;pointer-events:none;' onchange='hFoto(this);'>"
+        +"<label for='galInp' style='flex:1;cursor:pointer;display:block;'><div class='pl' style='padding:12px;'><span style='font-size:28px;'>&#128444;&#65039;</span><span style='color:var(--sub);font-size:12px;font-weight:700;display:block;'>Galeria</span></div></label>"
+        +"<input type='file' id='galInp' accept='image/*' multiple style='position:absolute;opacity:0;width:0;height:0;overflow:hidden;pointer-events:none;' onchange='hFoto(this);'>"
       +"</div>"
       +"<div class='fh'>"+(part.fotos.length>0?part.fotos.length+" foto(s) agregada(s). ":"")+"Puedes agregar multiples fotos desde camara o galeria</div>"
     +"</div>";
@@ -872,21 +872,33 @@ function hFoto(inp){
   var files=inp.files;
   if(!files||files.length===0)return;
   var loaded=0;
+  var total=files.length;
   for(var i=0;i<files.length;i++){
     var f=files[i];
     var r=new FileReader();
     r.onload=function(e){
       ST.part.fotos.push(e.target.result);
       loaded++;
-      if(loaded===files.length)rS2();
+      if(loaded===total){
+        inp.value="";
+        rS2();
+        toast(loaded+" foto(s) agregada(s)");
+      }
+    };
+    r.onerror=function(e){
+      loaded++;
+      console.error("Error leyendo foto:",e);
+      if(loaded===total){inp.value="";rS2();}
     };
     r.readAsDataURL(f);
   }
-  inp.value="";
 }
 function removeFoto(idx){
-  ST.part.fotos.splice(idx,1);
-  rS2();
+  if(ST.part.fotos&&ST.part.fotos.length>idx){
+    ST.part.fotos.splice(idx,1);
+    rS2();
+    toast("Foto eliminada");
+  }
 }
 function sPV(src){var img=G("ppi"),pv=G("ppv"),lb=G("ppl");if(!img||!pv||!lb)return;img.src=src;pv.style.display="block";lb.style.display="none";}
 function rFoto(){ST.part.fotoB64="";var pv=G("ppv"),lb=G("ppl");if(pv)pv.style.display="none";if(lb)lb.style.display="flex";var ci=G("camInp");if(ci)ci.value="";}
@@ -978,7 +990,7 @@ function editR(i){
     fotoB64:r.fotoB64,fotos:r.fotos?r.fotos.slice():[],des:false,comentario:r.comentario||"",
     empIncompletos:r.empIncompletos||false,totalPiezasManual:r.totalPiezasManual||""
   };
-  gS3();
+  hide("s3");show("s2");ST.step=3;rSB();rS2();window.scrollTo(0,0);
 }
 function gS1(){ST.step=1;rSB();hide("s2");show("s1");rS1();window.scrollTo(0,0);}
 function gS3(){
@@ -1064,7 +1076,7 @@ function rS3(){
       +_overlapWarn
       +"</div>";
   }
-  +"<div class='g2'><button class='btn btn-ghost btn-md' onclick='showEditSel();'>&#9998; Editar captura</button><button class='btn btn-ghost btn-md' onclick='nInsp();'>&#128260; Nueva</button></div>";
+  h+="<div class='g2'><button class='btn btn-ghost btn-md' onclick='showEditSel();'>&#9998; Editar captura</button><button class='btn btn-ghost btn-md' onclick='nInsp();'>&#128260; Nueva</button></div>";
   G("s3").innerHTML=h;
 }
 function KP(l,v,c){return "<div class='card' style='padding:12px;text-align:center;'><div style='font-size:19px;font-weight:900;color:"+c+";line-height:1;'>"+v+"</div><div style='font-size:8px;font-weight:700;color:var(--sub);text-transform:uppercase;margin-top:3px;'>"+l+"</div></div>";}
